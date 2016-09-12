@@ -16,15 +16,18 @@
 ESP8266WebServer server(80);     // handles networking and provides http requests
 const uint16_t led[] = {D1,D2,D3,D4,D6};
 
+uint8_t numled;
+
 // Functions
 void serveIndex();
+void handleSet();
 void handleOther();
 
 void setup(void){
   // Set up the debug connection
   Serial.begin(115200);
 
-  uint8_t numled = sizeof(led)/sizeof(uint16_t); //number of leds
+  numled = sizeof(led)/sizeof(uint16_t); //number of leds
   for(int i=0; i<numled; i++){
     pinMode(led[i], OUTPUT);
     digitalWrite(led[i], HIGH);
@@ -35,6 +38,7 @@ void setup(void){
   WiFi.softAP(SSID,PASSWD);
   // Set up HTTP-Server
   server.on("/",serveIndex);
+  server.on("/set",handleSet);
   server.onNotFound(handleOther);
   server.begin();
 
@@ -63,5 +67,33 @@ void serveIndex(){
 }
 
 void handleOther(){
-  server.send(200, "text/html", "unknown");
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += ( server.method() == HTTP_GET ) ? "GET" : "POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+  for ( uint8_t i = 0; i < server.args(); i++ ) {
+    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+  }
+
+  server.send ( 200, "text/plain", message );
+}
+
+void handleSet(){
+  uint8_t l = 255; //led index
+  uint8_t b = 255; //led brightness
+
+  for (uint8_t i=0; i < server.args(); i++) {
+    if(server.argName(i) == "led") l = atoi(server.arg(i).c_str()); //set next led index
+    else if(server.argName(i) == "b"){
+      b = atoi(server.arg(i).c_str());
+      if(l < numled) analogWrite(led[l], b);
+      l = 255;
+    }
+  }
+
+  server.send ( 200, "text/plain", "OK" );
 }

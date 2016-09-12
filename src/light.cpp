@@ -4,6 +4,9 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 
+#include "send_progmem.h"
+#include "html_index.h"
+
 
 #define HOSTNAME      "derhut" // mDNS-adress (http://HOSTNAME.local/)
 #define SSID          "Der Hut"
@@ -11,32 +14,28 @@
 #define REGISTER_PIN  4
 
 ESP8266WebServer server(80);     // handles networking and provides http requests
+const uint16_t led[] = {D1,D2,D3,D4,D6};
 
 // Functions
-void handleWeb();
+void serveIndex();
+void handleOther();
 
 void setup(void){
   // Set up the debug connection
   Serial.begin(115200);
 
-  pinMode(D1, OUTPUT);
-  pinMode(D2, OUTPUT);
-  pinMode(D3, OUTPUT);
-  pinMode(D4, OUTPUT);
-  pinMode(D6, OUTPUT);
-
-  digitalWrite(D1, HIGH);
-  digitalWrite(D2, HIGH);
-  digitalWrite(D3, HIGH);
-  digitalWrite(D4, HIGH);
-  digitalWrite(D6, HIGH);
-
+  uint8_t numled = sizeof(led)/sizeof(uint16_t); //number of leds
+  for(int i=0; i<numled; i++){
+    pinMode(led[i], OUTPUT);
+    digitalWrite(led[i], HIGH);
+  }
 
   WiFi.mode(WIFI_AP);
   WiFi.disconnect();
   WiFi.softAP(SSID,PASSWD);
   // Set up HTTP-Server
-  server.onNotFound(handleWeb);
+  server.on("/",serveIndex);
+  server.onNotFound(handleOther);
   server.begin();
 
   IPAddress myIP = WiFi.softAPIP();
@@ -50,39 +49,19 @@ void setup(void){
 
   Serial.println("Setup finished!");
   Serial.println("");
-
-
-
 }
 
 void loop(void){
   server.handleClient();
-  delay(100);
+  delay(10);
   //Serial.println("free heap:" + String(ESP.getFreeHeap()));
 }
 
-void handleWeb(){
-	server.send(200, "text/html", "<h1>You are connected</h1>");
-  Serial.println("request!");
+void serveIndex(){
+  server.send(200, "text/html", FPSTR(html_index));
+  sendProgmem(&server,html_index);
 }
 
-/*void handleRoot() {
-	server.send(200, "text/html", "<h1>You are connected</h1>");
+void handleOther(){
+  server.send(200, "text/html", "unknown");
 }
-
-void setup() {
-	Serial.print("Configuring access point...");
-	/* You can remove the password parameter if you want the AP to be open.
-	WiFi.softAP(ssid, password);
-
-	IPAddress myIP = WiFi.softAPIP();
-	Serial.print("AP IP address: ");
-	Serial.println(myIP);
-	server.on("/", handleRoot);
-	server.begin();
-	Serial.println("HTTP server started");
-}
-
-void loop() {
-	server.handleClient();
-}*/

@@ -21,6 +21,9 @@ uint8_t numled;
 // Functions
 void serveIndex();
 void handleSet();
+void handleOn();
+void handleOff();
+void handleRotate();
 void handleOther();
 
 void setup(void){
@@ -28,9 +31,10 @@ void setup(void){
   Serial.begin(115200);
 
   numled = sizeof(led)/sizeof(uint16_t); //number of leds
+  analogWriteRange(255);
   for(int i=0; i<numled; i++){
     pinMode(led[i], OUTPUT);
-    digitalWrite(led[i], HIGH);
+    analogWrite(led[i], 255);
   }
 
   WiFi.mode(WIFI_AP);
@@ -39,6 +43,9 @@ void setup(void){
   // Set up HTTP-Server
   server.on("/",serveIndex);
   server.on("/set",handleSet);
+  server.on("/on",handleOn);
+  server.on("/off",handleOff);
+  server.on("/rotate",handleRotate);
   server.onNotFound(handleOther);
   server.begin();
 
@@ -55,10 +62,36 @@ void setup(void){
   Serial.println("");
 }
 
+#define MODE_PLAIN 0
+#define MODE_ROTATE 1
+int mode = MODE_PLAIN;
+int frame = 0;
+
 void loop(void){
   server.handleClient();
   delay(10);
   //Serial.println("free heap:" + String(ESP.getFreeHeap()));
+
+  if (mode == MODE_ROTATE) {
+    frame++;
+    if (frame > 499) {
+      frame = 0;
+    }
+    for (int i = 0; i<5; i++) {
+      if (frame >= i*100 && frame < (i+1) * 100) {
+        int f = frame - i*100;
+        if (f < 30) {
+          analogWrite(led[i], (29-f) * 255 / 30);
+        } else if (f < 70) {
+          analogWrite(led[i], 0);
+        } else {
+          analogWrite(led[i], (f-70) * 255 / 30);
+        }
+      } else {
+        analogWrite(led[i], 255);
+      }
+    }
+  }
 }
 
 void serveIndex(){
@@ -79,10 +112,11 @@ void handleOther(){
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
 
-  server.send ( 200, "text/plain", message );
+  server.send ( 404, "text/plain", message );
 }
 
 void handleSet(){
+  mode = MODE_PLAIN;
   uint8_t l = 255; //led index
   uint8_t b = 255; //led brightness
 
@@ -95,5 +129,26 @@ void handleSet(){
     }
   }
 
+  server.send ( 200, "text/plain", "OK" );
+}
+
+void handleOn(){
+  mode = MODE_PLAIN;
+  for(int i=0; i<numled; i++){
+    analogWrite(led[i], 255);
+  }
+  server.send ( 200, "text/plain", "OK" );
+}
+
+void handleOff(){
+  mode = MODE_PLAIN;
+  for(int i=0; i<numled; i++){
+    analogWrite(led[i], 0);
+  }
+  server.send ( 200, "text/plain", "OK" );
+}
+
+void handleRotate(){
+  mode = MODE_ROTATE;
   server.send ( 200, "text/plain", "OK" );
 }
